@@ -1,17 +1,19 @@
-W Cosmetics Warehouse V28.1 - Product Name Repair
+W Cosmetics Warehouse - Railway Production Build
 
-IMPORTANT: Copy your existing warehouse.db and uploads folder into this folder before starting if you want to keep existing orders.
+Database:
+- Uses DATABASE_URL when provided (Railway PostgreSQL).
+- Falls back to local SQLite only when DATABASE_URL is absent.
 
-Run:
-  venv\Scripts\activate
-  python -m uvicorn app:app --host 0.0.0.0 --port 8000
+Railway:
+1. Add DATABASE_URL as a reference to the Postgres service:
+   ${{Postgres.DATABASE_URL}}
+2. Push this project to GitHub.
+3. Railway redeploys automatically.
+4. Test /health before configuring the custom domain.
 
-PDA: http://192.168.1.90:8000
-Admin: http://127.0.0.1:8000/admin
+Default global admin: ADMIN / admin123
+Change the password after first login.
 
-Product Name handling:
-- Reads store-specific columns such as `name Manukau`, `name St_Lukes`, etc.
-- Stores Product Name in order_lines at upload time.
-- Keeps a readable copy of the original Excel filename in uploads.
-- Repairs old missing Product Names automatically when the Picking page opens.
-- SKU matching handles Excel numeric .0 formatting.
+Production note:
+The current build keeps uploaded Excel files and generated exports on the service filesystem.
+For high-availability production, move these files to S3-compatible object storage or a Railway volume.

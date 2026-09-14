@@ -4,7 +4,13 @@ import html
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from datetime import datetime, timezone
-import sqlite3, secrets, hashlib, shutil, uuid, json
+import os, sqlite3, secrets, hashlib, shutil, uuid, json
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    psycopg = None
+    dict_row = None
 import pandas as pd
 
 BASE = Path(__file__).resolve().parent
@@ -22,7 +28,44 @@ NZ_STORES = ["Newmarket", "Sylvia Park", "Manukau", "Riccarton", "202 Queen St",
 def now():
     return datetime.now(timezone.utc).isoformat()
 
+class _PGResult:
+    def __init__(self, cursor):
+        self.cursor = cursor
+    def fetchone(self):
+        return self.cursor.fetchone()
+    def fetchall(self):
+        return self.cursor.fetchall()
+    def __iter__(self):
+        return iter(self.cursor)
+
+class _PGConnection:
+    def __init__(self, url):
+        if psycopg is None:
+            raise RuntimeError("psycopg is required when DATABASE_URL is configured")
+        self.conn = psycopg.connect(url, row_factory=dict_row)
+    def _sql(self, sql):
+        import re
+        sql = sql.replace("?", "%s")
+        sql = re.sub(r"^\s*INSERT\s+OR\s+IGNORE", "INSERT", sql, flags=re.I)
+        if re.search(r"INSERT\s+INTO", sql, flags=re.I) and "OR IGNORE" in sql.upper():
+            sql = re.sub(r"\s+OR\s+IGNORE", "", sql, flags=re.I)
+        # PostgreSQL equivalent for SQLite's INSERT OR IGNORE.
+        if sql.lstrip().upper().startswith("INSERT INTO") and "ON CONFLICT" not in sql.upper():
+            # Only used for the stores seed statement in this app.
+            if "stores(name,area)" in sql.replace(" ", "").lower():
+                sql = sql.rstrip().rstrip(";") + " ON CONFLICT (name, area) DO NOTHING"
+        return sql
+    def execute(self, sql, params=()):
+        cur=self.conn.cursor()
+        cur.execute(self._sql(sql), params)
+        return _PGResult(cur)
+    def commit(self): self.conn.commit()
+    def close(self): self.conn.close()
+
 def db():
+    database_url = os.getenv("DATABASE_URL", "").strip()
+    if database_url:
+        return _PGConnection(database_url)
     c = sqlite3.connect(DB)
     c.row_factory = sqlite3.Row
     return c
@@ -32,93 +75,63 @@ def password_hash(password: str) -> str:
 
 def init_db():
     c = db()
-    c.executescript("""
-    CREATE TABLE IF NOT EXISTS employees(
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
-        area TEXT NOT NULL,
-        role TEXT NOT NULL,
-        active INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS stores(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        area TEXT NOT NULL,
-        active INTEGER NOT NULL DEFAULT 1,
-        UNIQUE(name, area)
-    );
-
-    CREATE TABLE IF NOT EXISTS orders(
-        id TEXT PRIMARY KEY,
-        order_no TEXT NOT NULL,
-        filename TEXT,
-        area TEXT NOT NULL,
-        store TEXT NOT NULL,
-        status TEXT NOT NULL,
-        assigned_to TEXT,
-        created_at TEXT NOT NULL,
-        started_at TEXT,
-        completed_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS order_lines(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_id TEXT NOT NULL,
-        sku TEXT NOT NULL,
-        product_name TEXT,
-        required INTEGER NOT NULL,
-        soh TEXT,
-        bin TEXT,
-        picked INTEGER NOT NULL DEFAULT 0,
-        skipped INTEGER NOT NULL DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS events(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_id TEXT,
-        line_id INTEGER,
-        employee_id TEXT,
-        event_type TEXT,
-        qty INTEGER,
-        value TEXT,
-        created_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS sessions(
-        token TEXT PRIMARY KEY,
-        employee_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS product_master(
-        sku TEXT PRIMARY KEY,
-        product_name TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-    );
-    """)
-    # Shortage re-entry fields. Kept as migrations so existing V29 databases continue to work.
-    existing_cols={r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
-    if "is_shortage" not in existing_cols:
-        c.execute("ALTER TABLE orders ADD COLUMN is_shortage INTEGER NOT NULL DEFAULT 0")
-    if "source_order_id" not in existing_cols:
-        c.execute("ALTER TABLE orders ADD COLUMN source_order_id TEXT")
-    if "source_order_no" not in existing_cols:
-        c.execute("ALTER TABLE orders ADD COLUMN source_order_no TEXT")
-    for s in NZ_STORES:
-        c.execute("INSERT OR IGNORE INTO stores(name,area) VALUES(?,?)", (s, "NZ"))
-    if not c.execute("SELECT 1 FROM employees WHERE id='ADMIN'").fetchone():
-        c.execute(
-            "INSERT INTO employees VALUES(?,?,?,?,?,?,?)",
-            ("ADMIN", "Administrator", password_hash("admin123"), "ALL", "SUPERADMIN", 1, now())
-        )
+    database_url = os.getenv("DATABASE_URL", "").strip()
+    if database_url:
+        statements = [
+            """CREATE TABLE IF NOT EXISTS employees(
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, password_hash TEXT NOT NULL,
+                area TEXT NOT NULL, role TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS stores(
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name TEXT NOT NULL, area TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1, UNIQUE(name, area)
+            )""",
+            """CREATE TABLE IF NOT EXISTS orders(
+                id TEXT PRIMARY KEY, order_no TEXT NOT NULL, filename TEXT, area TEXT NOT NULL, store TEXT NOT NULL,
+                status TEXT NOT NULL, assigned_to TEXT, created_at TEXT NOT NULL, started_at TEXT, completed_at TEXT,
+                is_shortage INTEGER NOT NULL DEFAULT 0, source_order_id TEXT, source_order_no TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS order_lines(
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, order_id TEXT NOT NULL, sku TEXT NOT NULL,
+                product_name TEXT, required INTEGER NOT NULL, soh TEXT, bin TEXT, picked INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0
+            )""",
+            """CREATE TABLE IF NOT EXISTS events(
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, order_id TEXT, line_id BIGINT, employee_id TEXT,
+                event_type TEXT, qty INTEGER, value TEXT, created_at TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS sessions(
+                token TEXT PRIMARY KEY, employee_id TEXT NOT NULL, created_at TEXT NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS product_master(
+                sku TEXT PRIMARY KEY, product_name TEXT NOT NULL, updated_at TEXT NOT NULL
+            )""",
+        ]
+        for stmt in statements: c.execute(stmt)
+        c.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_shortage INTEGER NOT NULL DEFAULT 0")
+        c.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS source_order_id TEXT")
+        c.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS source_order_no TEXT")
+        for s in NZ_STORES:
+            c.execute("INSERT INTO stores(name,area) VALUES(?,?) ON CONFLICT (name,area) DO NOTHING", (s, "NZ"))
     else:
-        # V23: the original ADMIN account is the global administrator.
+        c.executescript("""
+        CREATE TABLE IF NOT EXISTS employees(id TEXT PRIMARY KEY,name TEXT NOT NULL,password_hash TEXT NOT NULL,area TEXT NOT NULL,role TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS stores(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,area TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,UNIQUE(name,area));
+        CREATE TABLE IF NOT EXISTS orders(id TEXT PRIMARY KEY,order_no TEXT NOT NULL,filename TEXT,area TEXT NOT NULL,store TEXT NOT NULL,status TEXT NOT NULL,assigned_to TEXT,created_at TEXT NOT NULL,started_at TEXT,completed_at TEXT,is_shortage INTEGER NOT NULL DEFAULT 0,source_order_id TEXT,source_order_no TEXT);
+        CREATE TABLE IF NOT EXISTS order_lines(id INTEGER PRIMARY KEY AUTOINCREMENT,order_id TEXT NOT NULL,sku TEXT NOT NULL,product_name TEXT,required INTEGER NOT NULL,soh TEXT,bin TEXT,picked INTEGER NOT NULL DEFAULT 0,skipped INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT,order_id TEXT,line_id INTEGER,employee_id TEXT,event_type TEXT,qty INTEGER,value TEXT,created_at TEXT);
+        CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,employee_id TEXT NOT NULL,created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS product_master(sku TEXT PRIMARY KEY,product_name TEXT NOT NULL,updated_at TEXT NOT NULL);
+        """)
+        existing_cols={r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+        if "is_shortage" not in existing_cols: c.execute("ALTER TABLE orders ADD COLUMN is_shortage INTEGER NOT NULL DEFAULT 0")
+        if "source_order_id" not in existing_cols: c.execute("ALTER TABLE orders ADD COLUMN source_order_id TEXT")
+        if "source_order_no" not in existing_cols: c.execute("ALTER TABLE orders ADD COLUMN source_order_no TEXT")
+        for s in NZ_STORES: c.execute("INSERT OR IGNORE INTO stores(name,area) VALUES(?,?)", (s, "NZ"))
+    if not c.execute("SELECT 1 FROM employees WHERE id='ADMIN'").fetchone():
+        c.execute("INSERT INTO employees VALUES(?,?,?,?,?,?,?)", ("ADMIN", "Administrator", password_hash("admin123"), "ALL", "SUPERADMIN", 1, now()))
+    else:
         c.execute("UPDATE employees SET role='SUPERADMIN', area='ALL' WHERE id='ADMIN' AND role='ADMIN' AND area='ALL'")
-    c.commit()
-    c.close()
+    c.commit(); c.close()
 
 init_db()
 
@@ -339,7 +352,7 @@ def admin_login(request: Request, employee_id: str=Form(...), password: str=Form
     token=secrets.token_urlsafe(32)
     c.execute("INSERT INTO sessions VALUES(?,?,?)",(token,eid,now())); c.commit(); c.close()
     response=RedirectResponse("/admin",status_code=303)
-    response.set_cookie(key="session",value=token,httponly=True,samesite="lax",secure=False,max_age=60*60*12,path="/")
+    response.set_cookie(key="session",value=token,httponly=True,samesite="lax",secure=bool(os.getenv("DATABASE_URL")),max_age=60*60*12,path="/")
     return response
 
 @app.get("/health")
@@ -367,7 +380,7 @@ def browser_login(request: Request, employee_id: str = Form(...), password: str 
     response = RedirectResponse(target, status_code=303)
     response.set_cookie(
         key="session", value=token, httponly=True, samesite="lax",
-        secure=False, max_age=60*60*12, path="/"
+        secure=bool(os.getenv("DATABASE_URL")), max_age=60*60*12, path="/"
     )
     return response
 
@@ -760,7 +773,7 @@ def add_store(request: Request, payload: dict):
     try:
         c.execute("INSERT INTO stores(name,area) VALUES(?,?)",(name,area))
         c.commit()
-    except sqlite3.IntegrityError:
+    except (sqlite3.IntegrityError, psycopg.IntegrityError if psycopg else sqlite3.IntegrityError):
         c.close(); raise HTTPException(400,"Store already exists")
     c.close(); return {"ok":True}
 
@@ -1068,7 +1081,7 @@ def create_employee(request: Request, payload: dict):
     c=db()
     try:
         c.execute("INSERT INTO employees VALUES(?,?,?,?,?,?,?)",(eid,name,password_hash(pw),area,role,1,now())); c.commit()
-    except sqlite3.IntegrityError:
+    except (sqlite3.IntegrityError, psycopg.IntegrityError if psycopg else sqlite3.IntegrityError):
         c.close(); raise HTTPException(400,"Employee ID already exists")
     c.close(); return {"ok":True}
 
