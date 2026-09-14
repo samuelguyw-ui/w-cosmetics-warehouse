@@ -15,3 +15,6 @@
 .bulk-toggle span{font-size:11px;font-weight:900;letter-spacing:.5px;color:#687683}
 
 .export-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-top:6px}
+
+/* V32 Logout */
+.logout-btn{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;padding:9px 13px;border-radius:9px;border:1px solid #d5dbe0;background:#fff;color:#222;text-decoration:none;font-size:11px;font-weight:900;letter-spacing:.5px;white-space:nowrap}.admin-user-actions{display:flex;align-items:center;gap:10px;margin-left:auto}.admin-user{display:flex;align-items:center;justify-content:space-between;gap:12px}.admin-user .area-pill{margin-left:auto}@media(max-width:520px){.logout-btn{padding:8px 10px}.admin-user-actions{gap:6px}}
