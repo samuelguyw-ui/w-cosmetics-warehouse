@@ -1,0 +1,8 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>W Cosmetics · Upload</title><link rel="stylesheet" href="/static/style.css"></head><body><main class="admin-main">
+<header><div class="brand">W COSMETICS</div><small>WAREHOUSE CONTROL CENTRE · ONLINE</small></header>
+<div class="admin-user card"><div><b>__ADMIN_NAME__</b><span> · __ADMIN_ID__</span></div><div class="area-pill">__ADMIN_AREA__</div></div>
+<nav class="admin-nav"><a href="/admin">DASHBOARD</a><a class="active" href="/admin/upload">UPLOAD ORDER</a><a href="/admin/stores">STORES</a><a href="/admin/employees">EMPLOYEES</a></nav>
+<section class="card"><div class="eyebrow">ORDER INTAKE</div><h1>Upload Order</h1><p class="muted">Upload the existing W Cosmetics Excel file. Store is read automatically from Excel B1.</p>
+<label class="field-label">AREA</label><select id="uploadArea">__AREA_OPTIONS__</select><label class="field-label">ORDER EXCEL</label><input id="file" type="file" accept=".xlsx,.xls"><button onclick="upload()">UPLOAD ORDER</button><div id="um"></div></section>
+<section class="card"><div class="eyebrow">DATA REPAIR</div><h2>Product Name Recovery</h2><p class="muted">Use this after upgrading an older database. The system searches uploaded Excel files and fills missing Product Names by SKU + Store.</p><button class="gray" onclick="backfillNames()">RECOVER MISSING PRODUCT NAMES</button><div id="bm"></div></section>
+</main><script>window.ADMIN_SCOPE="__ADMIN_SCOPE__";</script><script src="/static/admin.js"></script></body></html>

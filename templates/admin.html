@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>W Cosmetics · Admin</title><link rel="stylesheet" href="/static/style.css"></head><body><main>
+<header><div class="brand">W COSMETICS</div><small>WAREHOUSE MANAGEMENT · V23 ONLINE</small></header>
+<div class="admin-user card"><div><b>__ADMIN_NAME__</b><span> · __ADMIN_ID__</span></div><div class="area-pill">__ADMIN_AREA__</div></div>
+
+<div class="card admin-hero"><div class="eyebrow">CONTROL CENTRE</div><h1>Warehouse Admin</h1><p class="muted">Manage orders, stores and employees from one place.</p></div>
+
+<div class="card"><div class="section-head"><div><div class="eyebrow">ORDER INTAKE</div><h2>Upload Order</h2></div></div>
+<select id="uploadArea">__UPLOAD_AREAS__</select>
+<input id="file" type="file" accept=".xlsx,.xls">
+<button onclick="upload()">UPLOAD ORDER</button><div id="um"></div>
+<p class="muted">Store is read from Excel B1. The store must already exist in Store Management for the selected Area.</p>
+</div>
+
+<div class="card"><div class="section-head"><div><div class="eyebrow">LIVE WORK</div><h2>Order Pool</h2></div><button class="gray small" onclick="loadOrders()">REFRESH</button></div><div id="orders"></div></div>
+
+<div class="card admin-section"><div class="section-head"><div><div class="eyebrow">MASTER DATA</div><h2>Store Management</h2></div></div>
+<div class="form-grid"><input id="storeName" placeholder="Store name"><select id="storeArea">__STORE_AREAS__</select></div>
+<button onclick="addStore()">ADD STORE</button><div id="storeMsg"></div>
+<div class="filter-row"><label>SHOW AREA</label><select id="storeFilter" onchange="loadStores()">__STORE_AREAS__</select></div>
+<div id="stores"></div></div>
+
+<div class="card"><div class="section-head"><div><div class="eyebrow">PEOPLE</div><h2>Employee Management</h2></div></div>
+<div class="form-grid"><input id="nid" placeholder="Employee ID"><input id="nname" placeholder="Employee Name"></div>
+<input id="npw" type="password" placeholder="Initial Password (minimum 6 characters)">
+<select id="narea">__EMP_AREAS__</select>
+<select id="role">__ROLES__</select>
+<button onclick="addEmployee()">ADD EMPLOYEE</button><div id="em"></div><div id="staff"></div></div>
+
+<div class="card admin-note"><b>ACCESS CONTROL</b><p class="muted">Global Admin: NZ + AU. Area Admin: only their assigned Area. Pickers and Managers are restricted to their employee Area.</p></div>
+</main><script>window.ADMIN_SCOPE="__ADMIN_SCOPE__";</script><script src="/static/admin.js"></script><script>loadOrders();loadStaff();loadStores();</script></body></html>

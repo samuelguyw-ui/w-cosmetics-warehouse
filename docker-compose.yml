@@ -1,0 +1,10 @@
+services:
+  warehouse:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./exports:/app/exports
+    restart: unless-stopped

@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>W Cosmetics · Admin Login</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main class="admin-login-page">
+<header><div class="brand">W COSMETICS</div><small>WAREHOUSE MANAGEMENT · ADMIN PORTAL</small></header>
+<div class="card login-card admin-login-card">
+  <div class="eyebrow">SECURE ADMIN ACCESS</div>
+  <h1>Admin Login</h1>
+  <p class="muted">Global Admin can access NZ + AU. Area Admin can only access their assigned Area.</p>
+  <form action="/admin/login" method="post" autocomplete="on">
+    <label class="field-label">ADMIN ID</label>
+    <input name="employee_id" value="ADMIN" placeholder="Admin ID" autocomplete="username" required autofocus>
+    <label class="field-label">PASSWORD</label>
+    <input name="password" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button type="submit">LOGIN TO ADMIN PORTAL</button>
+  </form>
+  __ERROR__
+  <div class="login-footer"><a href="/">← PDA Employee Login</a></div>
+</div>
+</main></body></html>

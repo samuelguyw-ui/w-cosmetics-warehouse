@@ -1,0 +1,1 @@
+/* V22: PDA picking is server-rendered and does not require JavaScript. */
