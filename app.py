@@ -409,6 +409,21 @@ def logout(request: Request):
         c.close()
     return {"ok": True}
 
+@app.get("/admin/logout")
+def admin_logout(request: Request):
+    """Browser logout for the Admin UI.
+    The V32 button uses a normal link, so this endpoint must accept GET.
+    """
+    token = request.cookies.get("session")
+    if token:
+        c = db()
+        c.execute("DELETE FROM sessions WHERE token=?", (token,))
+        c.commit()
+        c.close()
+    response = RedirectResponse("/admin", status_code=303)
+    response.delete_cookie("session", path="/")
+    return response
+
 @app.get("/api/me")
 def me(request: Request):
     u = require_user(request)
