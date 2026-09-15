@@ -11,7 +11,7 @@ Railway:
 3. Railway redeploys automatically.
 4. Test /health before configuring the custom domain.
 
-Default global admin: ADMIN / admin123
+
 Change the password after first login.
 
 Production note:
