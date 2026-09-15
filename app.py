@@ -291,7 +291,7 @@ def pda_page(request: Request):
     area = "ALL" if is_global_admin(u) else str(u["area"])
     page=f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>W Cosmetics PDA V21</title><link rel="stylesheet" href="/static/style.css"></head><body><main>
 <header><b>W COSMETICS</b><small>PDA PICKING · V26 ONLINE</small></header>
-<div class="card"><h2>{html.escape(str(u["name"]))} · {html.escape(str(u["id"]))}</h2><div class="muted">AREA: {html.escape(area)}</div></div>
+<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><h2 style="margin:0">{html.escape(str(u["name"]))} · {html.escape(str(u["id"]))}</h2><div class="muted">AREA: {html.escape(area)}</div></div><a class="navlink" href="/pda/logout">LOGOUT</a></div>
 <div class="card"><h2>SELECT STORE</h2>
 <form action="/pda/store" method="get"><input type="hidden" name="token" value="{html.escape(token,quote=True)}"><select name="store_id" required style="width:100%;padding:16px;font-size:20px;border-radius:10px;border:1px solid #bbb;background:white"><option value="">-- Select Store --</option>{opts}</select><button type="submit">CONTINUE</button></form></div>
 </main></body></html>"""
@@ -424,6 +424,19 @@ def admin_logout(request: Request):
     response.delete_cookie("session", path="/")
     return response
 
+@app.get("/pda/logout")
+def pda_logout(request: Request):
+    """Browser logout for the PDA UI."""
+    token = request.cookies.get("session")
+    if token:
+        c = db()
+        c.execute("DELETE FROM sessions WHERE token=?", (token,))
+        c.commit()
+        c.close()
+    response = RedirectResponse("/", status_code=303)
+    response.delete_cookie("session", path="/")
+    return response
+
 @app.get("/api/me")
 def me(request: Request):
     u = require_user(request)
@@ -467,7 +480,7 @@ def pda_store_page(request: Request, store_id: int):
     body=''.join(cards) or '<div class="card">No available orders for this store.</div>'
     page=f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>W Cosmetics PDA V21</title><link rel="stylesheet" href="/static/style.css"></head><body><main>
 <header><b>W COSMETICS</b><small>PDA PICKING · V26 ONLINE</small></header>
-<div class="bar"><a class="navlink" href="/?token={html.escape(tok,quote=True)}">← STORES</a><b>{html.escape(str(store["name"]))}</b></div>
+<div class="bar"><a class="navlink" href="/?token={html.escape(tok,quote=True)}">← STORES</a><b>{html.escape(str(store["name"]))}</b><a class="navlink" href="/pda/logout">LOGOUT</a></div>
 <div class="card"><b>{html.escape(str(u["name"]))} · {html.escape(str(u["id"]))}</b><div class="muted">AREA: {html.escape(str(u["area"]))}</div></div>
 <div class="card"><h2>ORDER POOL</h2>{body}</div></main></body></html>"""
     return HTMLResponse(page)
@@ -590,7 +603,7 @@ def pda_pick_page(request: Request, oid: str):
         c.close()
         page='''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta http-equiv="Cache-Control" content="no-store"><title>W Cosmetics Picking</title><link rel="stylesheet" href="/static/style.css"></head><body><main>
 <header><b>W COSMETICS</b><small>PDA PICKING · V26 ONLINE</small></header>
-<div class="topbar"><a class="navlink" href="/?token=__TOKEN__">← STORES</a><span class="area-pill">__AREA__ · __STORE__</span></div>
+<div class="topbar"><a class="navlink" href="/?token=__TOKEN__">← STORES</a><span class="area-pill">__AREA__ · __STORE__</span><a class="navlink" href="/pda/logout">LOGOUT</a></div>
 <div class="card complete"><div class="complete-icon">✓</div><h2>ALL PICKING COMPLETE</h2><p>__DONE__ / __TOTAL__ lines completed</p></div>
 <form action="/pda/pick/__OID__/finish" method="post"><input type="hidden" name="token" value="__TOKEN__"><button type="submit">FINISH PICKING</button></form>
 </main></body></html>'''
@@ -637,7 +650,7 @@ def pda_pick_page(request: Request, oid: str):
         error_html='' 
     page=r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta http-equiv="Cache-Control" content="no-store"><title>W Cosmetics Picking</title><link rel="stylesheet" href="/static/style.css"></head><body data-remaining="__REMAIN__"><main>
 <header><b>W COSMETICS</b><small>PDA PICKING · V26 ONLINE</small></header>
-<div class="topbar"><a class="navlink" href="/?token=__TOKEN__">← STORES</a><span class="area-pill">__AREA__ · __STORE__</span></div>
+<div class="topbar"><a class="navlink" href="/?token=__TOKEN__">← STORES</a><span class="area-pill">__AREA__ · __STORE__</span><a class="navlink" href="/pda/logout">LOGOUT</a></div>
 <div class="order-head"><div><span>ORDER</span><strong>__ORDER__</strong></div><div class="line-count"><span>LINES</span><strong>__DONE__/__TOTAL__</strong></div></div>
 <div class="product-card">
 <div class="eyebrow">PRODUCT</div><h1 class="product-name">__PNAME__</h1>
